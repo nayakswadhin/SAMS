@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Building2,
   Calendar,
@@ -12,21 +12,28 @@ import {
   XCircle,
   AlertCircle,
 } from "lucide-react";
+import axios from "axios";
 
 interface SeatCategory {
+  _id: string;
   category: "Balcony" | "Ordinary";
   totalSeats: number;
   availableSeats: number;
   price: number;
 }
 
+interface ShowTiming {
+  _id: string;
+  timing: string;
+  seatCategories: SeatCategory[];
+}
+
 interface Show {
   _id: string;
   showDate: string;
   numberOfShows: number;
-  timings: string[];
-  seatCategories: SeatCategory[][];
-  createdBy: string;
+  shows: ShowTiming[];
+  managerId: string;
   createdAt: string;
 }
 
@@ -39,7 +46,8 @@ interface Booking {
   spectatorName: string;
   ticketPrice: number;
   status: "Active" | "Cancelled";
-  bookingDate: string;
+  bookingDate?: string;
+  paymentInfo?: string;
 }
 
 interface BookingFormData {
@@ -104,7 +112,7 @@ function CancelBookingModal({ booking, onClose, onConfirm }: CancelModalProps) {
             </p>
             <p className="text-sm text-gray-600 flex items-center gap-2">
               <Clock size={14} />
-              Show Time: {booking.showTime}
+              Show Time: {booking.showTime || "Not specified"}
             </p>
             <p className="text-sm text-gray-600 flex items-center gap-2">
               <Ticket size={14} />
@@ -156,73 +164,8 @@ function CancelBookingModal({ booking, onClose, onConfirm }: CancelModalProps) {
   );
 }
 
-// Mock data for demonstration
-const mockShows: Show[] = [
-  {
-    _id: "1",
-    showDate: "2024-03-20",
-    numberOfShows: 2,
-    timings: ["14:00", "19:00"],
-    seatCategories: [
-      [
-        {
-          category: "Balcony",
-          totalSeats: 50,
-          availableSeats: 45,
-          price: 100,
-        },
-        {
-          category: "Ordinary",
-          totalSeats: 100,
-          availableSeats: 80,
-          price: 50,
-        },
-      ],
-      [
-        {
-          category: "Balcony",
-          totalSeats: 50,
-          availableSeats: 50,
-          price: 120,
-        },
-        {
-          category: "Ordinary",
-          totalSeats: 100,
-          availableSeats: 90,
-          price: 60,
-        },
-      ],
-    ],
-    createdBy: "user123",
-    createdAt: "2024-03-15T10:00:00Z",
-  },
-  {
-    _id: "2",
-    showDate: "2024-03-21",
-    numberOfShows: 1,
-    timings: ["20:00"],
-    seatCategories: [
-      [
-        {
-          category: "Balcony",
-          totalSeats: 50,
-          availableSeats: 30,
-          price: 150,
-        },
-        {
-          category: "Ordinary",
-          totalSeats: 100,
-          availableSeats: 70,
-          price: 75,
-        },
-      ],
-    ],
-    createdBy: "user123",
-    createdAt: "2024-03-15T11:00:00Z",
-  },
-];
-
 function SalespersonDashboard({ onLogout, user }) {
+  const [shows, setShows] = useState<Show[]>([]);
   const [selectedShow, setSelectedShow] = useState<{
     show: Show;
     showIndex: number;
@@ -238,50 +181,184 @@ function SalespersonDashboard({ onLogout, user }) {
     spectatorName: "",
     paymentInfo: "",
   });
+  const [loading, setLoading] = useState(true);
+  const [bookingsLoading, setBookingsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [bookingsError, setBookingsError] = useState<string | null>(null);
+
+  const salesperson = JSON.parse(localStorage.getItem("user") || "{}");
+  const managerId = salesperson.managerId;
+
+  // Fetch shows
+  useEffect(() => {
+    const fetchShows = async () => {
+      try {
+        const response = await axios.post("http://localhost:3000/getShows", {
+          managerId: managerId,
+        });
+        setShows(response.data.shows);
+        setLoading(false);
+      } catch (err) {
+        setError("Failed to fetch shows");
+        setLoading(false);
+      }
+    };
+
+    fetchShows();
+  }, [managerId]);
+
+  // Fetch bookings
+  useEffect(() => {
+    const fetchBookings = async () => {
+      try {
+        setBookingsLoading(true);
+        const response = await axios.post("http://localhost:3000/getBookings", {
+          userId: salesperson._id,
+        });
+
+        if (response.data.success) {
+          setBookings(response.data.data);
+        } else {
+          setBookingsError("Failed to fetch bookings");
+        }
+      } catch (err) {
+        console.error("Error fetching bookings:", err);
+        setBookingsError("Failed to fetch bookings. Please try again.");
+      } finally {
+        setBookingsLoading(false);
+      }
+    };
+
+    // Only fetch bookings if salesperson ID exists
+    if (salesperson._id) {
+      fetchBookings();
+    } else {
+      setBookingsLoading(false);
+    }
+  }, [salesperson._id]);
 
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedShow) return;
 
-    const newBooking: Booking = {
-      id: Math.random().toString(36).substr(2, 9),
-      showDate: selectedShow.show.showDate,
-      showTime: selectedShow.show.timings[selectedShow.showIndex],
-      seatType: bookingForm.seatType,
-      seatNumber: bookingForm.seatNumber,
-      spectatorName: bookingForm.spectatorName,
-      ticketPrice:
-        selectedShow.show.seatCategories[selectedShow.showIndex].find(
-          (cat) => cat.category === bookingForm.seatType
-        )?.price || 0,
-      status: "Active",
-      bookingDate: new Date().toISOString(),
-    };
+    try {
+      const selectedSeatCategory = selectedShow.show.shows[
+        selectedShow.showIndex
+      ].seatCategories.find((cat) => cat.category === bookingForm.seatType);
 
-    setBookings([newBooking, ...bookings]);
+      if (!selectedSeatCategory) {
+        setError("Selected seat category not found");
+        return;
+      }
 
-    // Reset form and selected show
-    setBookingForm({
-      showId: "",
-      showIndex: 0,
-      seatType: "Ordinary",
-      seatNumber: "",
-      spectatorName: "",
-      paymentInfo: "",
-    });
-    setSelectedShow(null);
+      const bookingData = {
+        showId: selectedShow.show._id,
+        timing: selectedShow.show.shows[selectedShow.showIndex].timing,
+        seatType: bookingForm.seatType,
+        seatNumber: bookingForm.seatNumber,
+        spectatorName: bookingForm.spectatorName,
+        paymentInfo: bookingForm.paymentInfo,
+        bookedBy: salesperson._id,
+      };
+
+      const response = await axios.post(
+        "http://localhost:3000/book-seat",
+        bookingData
+      );
+
+      if (response.data.success) {
+        // Create a new booking object from the response
+        const newBooking: Booking = {
+          id: response.data.data._id,
+          showDate: selectedShow.show.showDate,
+          showTime: selectedShow.show.shows[selectedShow.showIndex].timing,
+          seatType: bookingForm.seatType,
+          seatNumber: bookingForm.seatNumber,
+          spectatorName: bookingForm.spectatorName,
+          ticketPrice: selectedSeatCategory.price,
+          status: "Active",
+          paymentInfo: bookingForm.paymentInfo,
+        };
+
+        // Update the bookings state with the new booking
+        setBookings([newBooking, ...bookings]);
+
+        // Reset form state
+        setBookingForm({
+          showId: "",
+          showIndex: 0,
+          seatType: "Ordinary",
+          seatNumber: "",
+          spectatorName: "",
+          paymentInfo: "",
+        });
+        setSelectedShow(null);
+
+        // Refresh the bookings list from the server
+        const bookingsResponse = await axios.post(
+          "http://localhost:3000/getBookings",
+          {
+            userId: salesperson._id,
+          }
+        );
+
+        if (bookingsResponse.data.success) {
+          setBookings(bookingsResponse.data.data);
+        }
+      } else {
+        setError(response.data.message || "Failed to create booking");
+      }
+    } catch (err) {
+      console.error("Error creating booking:", err);
+      setError(
+        err.response?.data?.message ||
+          "Failed to create booking. Please try again."
+      );
+    }
   };
 
-  const handleCancelBooking = (bookingId: string, refundAmount: number) => {
-    setBookings(
-      bookings.map((booking) =>
-        booking.id === bookingId ? { ...booking, status: "Cancelled" } : booking
-      )
-    );
-    setSelectedBookingForCancel(null);
+  const handleCancelBooking = async (
+    bookingId: string,
+    refundAmount: number
+  ) => {
+    try {
+      // Here you would typically make an API call to cancel the booking on the server
+      // For now, we'll just update the UI
+      setBookings(
+        bookings.map((booking) =>
+          booking.id === bookingId
+            ? { ...booking, status: "Cancelled" }
+            : booking
+        )
+      );
+      setSelectedBookingForCancel(null);
+
+      // Ideally, you would have an API call like:
+      /*
+      await axios.post("http://localhost:3000/cancel-booking", {
+        bookingId,
+        refundAmount,
+        userId: salesperson._id
+      });
+      
+      // Then refresh the bookings
+      const response = await axios.post("http://localhost:3000/getBookings", {
+        userId: salesperson._id,
+      });
+      
+      if (response.data.success) {
+        setBookings(response.data.data);
+      }
+      */
+    } catch (err) {
+      console.error("Error cancelling booking:", err);
+      setError("Failed to cancel booking. Please try again.");
+    }
   };
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return "Not specified";
+
     return new Date(dateString).toLocaleDateString("en-US", {
       weekday: "long",
       year: "numeric",
@@ -289,6 +366,22 @@ function SalespersonDashboard({ onLogout, user }) {
       day: "numeric",
     });
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        Loading...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-red-600">
+        {error}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
@@ -329,7 +422,7 @@ function SalespersonDashboard({ onLogout, user }) {
                 <h2 className="text-xl font-semibold">Available Shows</h2>
               </div>
               <div className="space-y-6">
-                {mockShows.map((show) => (
+                {shows.map((show) => (
                   <div
                     key={show._id}
                     className="border border-gray-100 rounded-xl p-4 transition-all duration-300 hover:border-blue-200"
@@ -349,7 +442,7 @@ function SalespersonDashboard({ onLogout, user }) {
                     </div>
 
                     <div className="space-y-4">
-                      {show.timings.map((timing, index) => (
+                      {show.shows.map((showTiming, index) => (
                         <div
                           key={`${show._id}-${index}`}
                           className="bg-gray-50 rounded-xl p-4 transition-all duration-300 hover:bg-gray-100"
@@ -357,7 +450,9 @@ function SalespersonDashboard({ onLogout, user }) {
                           <div className="flex justify-between items-start mb-3">
                             <div className="flex items-center gap-2">
                               <Clock size={16} className="text-blue-600" />
-                              <span className="font-medium">{timing}</span>
+                              <span className="font-medium">
+                                {showTiming.timing}
+                              </span>
                             </div>
                             <button
                               onClick={() =>
@@ -371,9 +466,9 @@ function SalespersonDashboard({ onLogout, user }) {
                           </div>
 
                           <div className="space-y-2 text-sm text-gray-600">
-                            {show.seatCategories[index].map((category) => (
+                            {showTiming.seatCategories.map((category) => (
                               <div
-                                key={category.category}
+                                key={category._id}
                                 className="flex items-center gap-2 bg-white p-2 rounded-lg"
                               >
                                 <Users size={16} className="text-blue-600" />
@@ -407,7 +502,7 @@ function SalespersonDashboard({ onLogout, user }) {
                     <h2 className="text-xl font-semibold mb-2">Book Tickets</h2>
                     <p className="text-sm text-gray-600">
                       {formatDate(selectedShow.show.showDate)} at{" "}
-                      {selectedShow.show.timings[selectedShow.showIndex]}
+                      {selectedShow.show.shows[selectedShow.showIndex].timing}
                     </p>
                   </div>
                   <button
@@ -433,13 +528,10 @@ function SalespersonDashboard({ onLogout, user }) {
                       className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 transition-all duration-300"
                       required
                     >
-                      {selectedShow.show.seatCategories[
+                      {selectedShow.show.shows[
                         selectedShow.showIndex
-                      ].map((category) => (
-                        <option
-                          key={category.category}
-                          value={category.category}
-                        >
+                      ].seatCategories.map((category) => (
+                        <option key={category._id} value={category.category}>
                           {category.category} (${category.price}) -{" "}
                           {category.availableSeats} available
                         </option>
@@ -517,59 +609,77 @@ function SalespersonDashboard({ onLogout, user }) {
                 <History size={24} className="text-blue-600" />
                 <h2 className="text-xl font-semibold">Recent Bookings</h2>
               </div>
-              <div className="space-y-4">
-                {bookings.length === 0 ? (
-                  <p className="text-gray-500 text-center py-4">
-                    No bookings yet
-                  </p>
-                ) : (
-                  bookings.map((booking) => (
-                    <div
-                      key={booking.id}
-                      className="border border-gray-100 rounded-xl p-4 transition-all duration-300 hover:border-blue-200"
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-medium">{booking.spectatorName}</h3>
-                        <span
-                          className={`px-2 py-1 rounded-md text-xs ${
-                            booking.status === "Active"
-                              ? "bg-green-50 text-green-600"
-                              : "bg-red-50 text-red-600"
-                          }`}
-                        >
-                          {booking.status}
-                        </span>
+
+              {bookingsLoading ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">Loading bookings...</p>
+                </div>
+              ) : bookingsError ? (
+                <div className="text-center py-8">
+                  <p className="text-red-500">{bookingsError}</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {bookings.length === 0 ? (
+                    <p className="text-gray-500 text-center py-4">
+                      No bookings yet
+                    </p>
+                  ) : (
+                    bookings.map((booking) => (
+                      <div
+                        key={booking.id}
+                        className="border border-gray-100 rounded-xl p-4 transition-all duration-300 hover:border-blue-200"
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <h3 className="font-medium">
+                            {booking.spectatorName}
+                          </h3>
+                          <span
+                            className={`px-2 py-1 rounded-md text-xs ${
+                              booking.status === "Active"
+                                ? "bg-green-50 text-green-600"
+                                : "bg-red-50 text-red-600"
+                            }`}
+                          >
+                            {booking.status}
+                          </span>
+                        </div>
+                        <div className="text-sm text-gray-600 space-y-1">
+                          <p className="flex items-center gap-2">
+                            <Calendar size={14} />
+                            {formatDate(booking.showDate)}
+                          </p>
+                          <p className="flex items-center gap-2">
+                            <Clock size={14} />
+                            {booking.showTime || "Not specified"}
+                          </p>
+                          <p className="flex items-center gap-2">
+                            <Ticket size={14} />
+                            {booking.seatType} - Seat {booking.seatNumber}
+                          </p>
+                          <p className="flex items-center gap-2">
+                            <Banknote size={14} />${booking.ticketPrice}
+                          </p>
+                          {booking.paymentInfo && (
+                            <p className="flex items-center gap-2 text-xs text-gray-500">
+                              Payment: {booking.paymentInfo}
+                            </p>
+                          )}
+                        </div>
+                        {booking.status === "Active" && (
+                          <button
+                            onClick={() => setSelectedBookingForCancel(booking)}
+                            className="mt-3 w-full text-red-600 border border-red-200 px-4 py-2 rounded-lg hover:bg-red-50 transition-all duration-300 flex items-center justify-center gap-2"
+                          >
+                            <XCircle size={16} />
+                            Cancel Booking
+                          </button>
+                        )}
                       </div>
-                      <div className="text-sm text-gray-600 space-y-1">
-                        <p className="flex items-center gap-2">
-                          <Calendar size={14} />
-                          {formatDate(booking.showDate)}
-                        </p>
-                        <p className="flex items-center gap-2">
-                          <Clock size={14} />
-                          {booking.showTime}
-                        </p>
-                        <p className="flex items-center gap-2">
-                          <Ticket size={14} />
-                          {booking.seatType} - Seat {booking.seatNumber}
-                        </p>
-                        <p className="flex items-center gap-2">
-                          <Banknote size={14} />${booking.ticketPrice}
-                        </p>
-                      </div>
-                      {booking.status === "Active" && (
-                        <button
-                          onClick={() => setSelectedBookingForCancel(booking)}
-                          className="mt-3 w-full text-red-600 border border-red-200 px-4 py-2 rounded-lg hover:bg-red-50 transition-all duration-300 flex items-center justify-center gap-2"
-                        >
-                          <XCircle size={16} />
-                          Cancel Booking
-                        </button>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

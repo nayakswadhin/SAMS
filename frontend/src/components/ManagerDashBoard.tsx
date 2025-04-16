@@ -13,15 +13,18 @@ interface SeatCategory {
   price: number;
 }
 
-interface ShowData {
+interface ShowTiming {
   timing: string;
   seatCategories: SeatCategory[];
 }
 
 interface Show {
+  _id: string;
   showDate: string;
   numberOfShows: number;
-  shows: ShowData[];
+  shows: ShowTiming[]; // Updated from timings to shows array with timing and seatCategories
+  managerId: string;
+  createdAt: string;
 }
 
 interface Salesperson {
@@ -41,14 +44,26 @@ export default function ManagerDashboard({ onLogout, user }) {
   const [salespersons, setSalespersons] = useState<Salesperson[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
+  const manager = JSON.parse(localStorage.getItem("user"));
+  const managerId = manager._id;
   useEffect(() => {
+    const fetchShows = async () => {
+      try {
+        const res = await axios.post("http://localhost:3000/getShows", {
+          managerId: managerId,
+        });
+        console.log(res.data);
+        setShows(res.data.shows || []); // Fallback to empty array if shows is undefined
+      } catch (e) {
+        console.log(e);
+        setShows([]);
+      }
+    };
     const fetchSalespersons = async () => {
       try {
-        const manager = JSON.parse(localStorage.getItem("user"));
         await axios
           .post("http://localhost:3000/api/salesperson", {
-            managerId: manager._id,
+            managerId: managerId,
           })
           .then((res) => {
             console.log(res);
@@ -57,9 +72,6 @@ export default function ManagerDashboard({ onLogout, user }) {
           .catch((e) => {
             console.log(e);
           });
-
-        // if (response.data.message === "sales person found") {
-        // }
       } catch (err) {
         setError("Failed to fetch salespersons");
         console.error("Error fetching salespersons:", err);
@@ -69,6 +81,7 @@ export default function ManagerDashboard({ onLogout, user }) {
     };
 
     fetchSalespersons();
+    fetchShows();
   }, []);
 
   const handleCreateSalesperson = (data: any) => {
@@ -80,45 +93,35 @@ export default function ManagerDashboard({ onLogout, user }) {
     console.log("Creating show:", data);
 
     try {
-      // Transform the data to match what the backend expects
-      const transformedData = {
+      // Send data directly in the new format without transformation
+      const showData = {
         showDate: data.showDate,
         numberOfShows: data.numberOfShows,
-        timings: data.shows.map((show: any) => show.timing),
-        seatCategories: data.shows[0].seatCategories,
-        // If you have managerId, include it
-        // managerId: yourManagerId
+        shows: data.shows, // Now directly using the shows array with timing and seatCategories
+        managerId: managerId,
       };
 
-      // Send data to the API
-      const response = await fetch("http://localhost/api/createshow", {
+      const response = await fetch("http://localhost:3000/createshow", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          // Include authentication token if needed
-          // 'Authorization': `Bearer ${yourAuthToken}`
         },
-        body: JSON.stringify(transformedData),
+        body: JSON.stringify(showData),
       });
 
       const result = await response.json();
 
       if (response.ok) {
-        // Success - update local state with the newly created show
-        setShows((prev) => [...prev, result.data]); // Use the data from API response
         console.log("Show created successfully:", result);
-        // toast.success("Show created successfully");
+        // Add new show to local state
+        setShows((prev) => [...prev, result.data]);
       } else {
-        // Error handling
         console.error("Failed to create show:", result);
-        // toast.error(result.message || "Failed to create show");
       }
     } catch (error) {
       console.error("Error creating show:", error);
-      // toast.error("Network error. Please try again.");
     } finally {
       setIsShowModalOpen(false);
-      setShows((prev) => [...prev, data]);
     }
   };
 
@@ -187,7 +190,7 @@ export default function ManagerDashboard({ onLogout, user }) {
           )}
         </div>
 
-        {/* Shows Section */}
+        {/* Shows Section - Updated to use the new data structure */}
         {shows.length > 0 && (
           <div className="bg-white rounded-lg shadow-md p-6">
             <h3 className="text-lg font-semibold mb-4">Upcoming Shows</h3>
@@ -208,38 +211,39 @@ export default function ManagerDashboard({ onLogout, user }) {
                     </div>
                   </div>
                   <div className="space-y-4">
-                    {show.shows.map((showData, showIndex) => (
-                      <div
-                        key={showIndex}
-                        className="bg-gray-50 p-4 rounded-lg"
-                      >
-                        <h5 className="font-medium mb-3">
-                          Show #{showIndex + 1}
-                        </h5>
-                        <p className="text-gray-600 mb-2">
-                          Time: {showData.timing}
-                        </p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {showData.seatCategories.map((category, i) => (
-                            <div
-                              key={i}
-                              className="bg-white p-3 rounded-lg shadow-sm"
-                            >
-                              <h6 className="font-medium">
-                                {category.category}
-                              </h6>
-                              <p className="text-sm text-gray-600">
-                                Available: {category.availableSeats} /{" "}
-                                {category.totalSeats}
-                              </p>
-                              <p className="text-sm text-gray-600">
-                                Price: ₹{category.price}
-                              </p>
-                            </div>
-                          ))}
+                    {show.shows &&
+                      show.shows.map((showTiming, showIndex) => (
+                        <div
+                          key={showIndex}
+                          className="bg-gray-50 p-4 rounded-lg"
+                        >
+                          <h5 className="font-medium mb-3">
+                            Show #{showIndex + 1}
+                          </h5>
+                          <p className="text-gray-600 mb-2">
+                            Time: {showTiming.timing}
+                          </p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {showTiming.seatCategories.map((category, i) => (
+                              <div
+                                key={i}
+                                className="bg-white p-3 rounded-lg shadow-sm"
+                              >
+                                <h6 className="font-medium">
+                                  {category.category}
+                                </h6>
+                                <p className="text-sm text-gray-600">
+                                  Available: {category.availableSeats} /{" "}
+                                  {category.totalSeats}
+                                </p>
+                                <p className="text-sm text-gray-600">
+                                  Price: ₹{category.price}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 </div>
               ))}

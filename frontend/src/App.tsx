@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { Toaster, toast } from "react-hot-toast";
 import LandingPage from "./components/LandingPage";
 import LoginForm from "./components/LoginForm";
 import SignupForm from "./components/SignupForm";
@@ -47,23 +48,24 @@ function App() {
         email,
         password,
       });
-
-      if (response.data.message === "Sucessfully Logged In") {
-        console.log("Login successful");
-        // Store user data and type in localStorage
-        localStorage.setItem("user", JSON.stringify(response.data.user));
-        localStorage.setItem("userType", userType!);
-        setUser(response.data.user);
-        setIsLoggedIn(true);
-        setShowLogin(false);
-        console.log(response.data);
-      } else {
-        console.error("Login failed:", response.data.error);
-        // Handle login failure (e.g., show error message to user)
-      }
-    } catch (error) {
+      console.log("Login successful");
+      localStorage.setItem("user", JSON.stringify(response.data.user));
+      localStorage.setItem("userType", userType!);
+      setUser(response.data.user);
+      setIsLoggedIn(true);
+      setShowLogin(false);
+      toast.success(response.data.message);
+    } catch (error: any) {
       console.error("Error during login request:", error);
-      // Handle network errors or other exceptions
+      if (error.response) {
+        toast.error(
+          error.response.data.message || "An error occurred during login"
+        );
+      } else {
+        toast.error(
+          "Network error. Please check your connection and try again."
+        );
+      }
     }
   };
 
@@ -80,23 +82,25 @@ function App() {
         "http://localhost:3000/api/register",
         data
       );
-
-      if (response.data.message === "User Created Sucessfully") {
-        console.log("Signup successful");
-        // Store user data in localStorage
-        localStorage.setItem("user", JSON.stringify(response.data.data));
-        localStorage.setItem("userType", "manager"); // Since only managers can sign up
-        setUser(response.data.data);
-        setShowSignup(false);
-        setShowLogin(true);
-        console.log(response.data);
-      } else {
-        console.error("Signup failed:", response.data.error);
-        // Handle signup failure
-      }
-    } catch (error) {
+      console.log("Signup successful");
+      localStorage.setItem("user", JSON.stringify(response.data.data));
+      localStorage.setItem("userType", "manager");
+      setUser(response.data.data);
+      setShowSignup(false);
+      setIsLoggedIn(true);
+      setShowLogin(false);
+      toast.success(response.data.message);
+    } catch (error: any) {
       console.error("Error during signup request:", error);
-      // Handle network errors or other exceptions
+      if (error.response) {
+        toast.error(
+          error.response.data.message || "An error occurred during signup"
+        );
+      } else {
+        toast.error(
+          "Network error. Please check your connection and try again."
+        );
+      }
     }
   };
 
@@ -109,51 +113,71 @@ function App() {
     setUserType(null);
     setShowLogin(false);
     setShowSignup(false);
+    toast.success("Logged out successfully");
   };
 
-  if (showSignup && userType === "manager") {
-    return (
-      <SignupForm
-        onSignup={handleSignup}
-        onBack={() => setShowSignup(false)}
-        onLoginClick={() => {
-          setShowSignup(false);
-          setShowLogin(true);
+  return (
+    <>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            background: "#363636",
+            color: "#fff",
+          },
+          success: {
+            duration: 2000,
+            theme: {
+              primary: "#4aed88",
+            },
+          },
+          error: {
+            duration: 2000,
+            theme: {
+              primary: "#ff4b4b",
+            },
+          },
         }}
       />
-    );
-  }
 
-  if (showLogin) {
-    return (
-      <LoginForm
-        userType={userType!}
-        onLogin={handleLogin}
-        onBack={() => {
-          setShowLogin(false);
-          setUserType(null);
-        }}
-        onSignupClick={
-          userType === "manager"
-            ? () => {
-                setShowLogin(false);
-                setShowSignup(true);
-              }
-            : undefined
-        }
-      />
-    );
-  }
-
-  if (isLoggedIn) {
-    return userType === "manager" ? (
-      <ManagerDashboard user={user} onLogout={handleLogout} />
-    ) : (
-      <SalespersonDashboard user={user} onLogout={handleLogout} />
-    );
-  }
-
-  return <LandingPage onLoginClick={handleLoginClick} />;
+      {showSignup && userType === "manager" ? (
+        <SignupForm
+          onSignup={handleSignup}
+          onBack={() => setShowSignup(false)}
+          onLoginClick={() => {
+            setShowSignup(false);
+            setShowLogin(true);
+          }}
+        />
+      ) : showLogin ? (
+        <LoginForm
+          userType={userType!}
+          onLogin={handleLogin}
+          onBack={() => {
+            setShowLogin(false);
+            setUserType(null);
+          }}
+          onSignupClick={
+            userType === "manager"
+              ? () => {
+                  setShowLogin(false);
+                  setShowSignup(true);
+                }
+              : undefined
+          }
+        />
+      ) : isLoggedIn ? (
+        userType === "manager" ? (
+          <ManagerDashboard user={user} onLogout={handleLogout} />
+        ) : (
+          <SalespersonDashboard user={user} onLogout={handleLogout} />
+        )
+      ) : (
+        <LandingPage onLoginClick={handleLoginClick} />
+      )}
+    </>
+  );
 }
 
 export default App;

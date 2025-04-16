@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 
 import { authRoute } from "./routes/authRoutes.js";
 import { showRoute } from "./routes/showRoute.js";
+import { bookRoute } from "./routes/bookRoute.js";
 
 const app = express();
 
@@ -31,6 +32,7 @@ app.get("/", (req, res) => {
 
 app.use("/api", authRoute);
 app.use("/", showRoute);
+app.use("/", bookRoute);
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {

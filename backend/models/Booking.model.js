@@ -1,5 +1,4 @@
-// models/Booking.js
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const BookingSchema = new mongoose.Schema({
   show: {
@@ -43,6 +42,10 @@ const BookingSchema = new mongoose.Schema({
     type: String,
     enum: ["Active", "Cancelled"],
     default: "Active",
+  },
+  showTime: {
+    type: String,
+    required: true,
   },
   cancellation: {
     cancellationDate: {

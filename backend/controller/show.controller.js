@@ -1,52 +1,50 @@
+import { Show } from "../models/Show.model.js";
+
 export const createShow = async (req, res) => {
   try {
-    const { showDate, numberOfShows, timings, seatCategories, managerId } =
-      req.body;
-
-    // Validate required fields
-    if (
-      !showDate ||
-      !numberOfShows ||
-      !timings ||
-      !seatCategories ||
-      !seatCategories.length
-    ) {
+    const { showDate, numberOfShows, shows, managerId } = req.body;
+    if (!showDate || !numberOfShows || !shows || !shows.length) {
       return res.status(400).json({
         success: false,
         message: "Please provide all required fields",
       });
     }
-
-    // Validate timings match the numberOfShows
-    if (timings.length !== numberOfShows) {
+    if (shows.length !== numberOfShows) {
       return res.status(400).json({
         success: false,
-        message: `Number of timings (${timings.length}) does not match numberOfShows (${numberOfShows})`,
+        message: `Number of shows (${shows.length}) does not match numberOfShows (${numberOfShows})`,
       });
     }
-
-    // Validate seat categories
-    for (const category of seatCategories) {
-      if (!category.category || !category.totalSeats || !category.price) {
+    for (const show of shows) {
+      if (!show.timing) {
         return res.status(400).json({
           success: false,
-          message:
-            "Each seat category must include category, totalSeats, and price",
+          message: "Each show must include timing",
         });
       }
 
-      // Set availableSeats equal to totalSeats initially
-      category.availableSeats = category.totalSeats;
+      if (!show.seatCategories || !show.seatCategories.length) {
+        return res.status(400).json({
+          success: false,
+          message: "Each show must include seat categories",
+        });
+      }
+      for (const category of show.seatCategories) {
+        if (!category.category || !category.totalSeats || !category.price) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Each seat category must include category, totalSeats, and price",
+          });
+        }
+        category.availableSeats = category.totalSeats;
+      }
     }
-
-    // Create the show
     const show = await Show.create({
       showDate,
       numberOfShows,
-      timings,
-      seatCategories,
+      shows,
       managerId: managerId || null,
-      createdBy: req.user._id, // Assuming you have user authentication middleware
     });
 
     return res.status(201).json({
@@ -62,4 +60,16 @@ export const createShow = async (req, res) => {
       error: error.message,
     });
   }
+};
+
+export const getShows = async (req, res) => {
+  const { managerId } = req.body;
+  if (!managerId) {
+    return res.status(400).json({ message: "ManagerId Required", shows: [] });
+  }
+  const shows = await Show.find({ managerId: managerId });
+  if (!shows) {
+    return res.status(400).json({ message: "No Show Found", shows: [] });
+  }
+  return res.status(200).json({ message: "Show Found", shows: shows });
 };

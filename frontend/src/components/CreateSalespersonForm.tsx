@@ -32,7 +32,9 @@ const CreateSalespersonForm: React.FC<CreateSalespersonFormProps> = ({
     password: "",
     phoneNumber: "",
   });
-  const user = JSON.parse(localStorage.getItem("user"));
+  const user = localStorage.getItem("user")
+    ? JSON.parse(localStorage.getItem("user") as string)
+    : null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

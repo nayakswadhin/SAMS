@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const ShowSchema = new mongoose.Schema({
   showDate: {
-    type: Date,
+    type: String,
     required: true,
   },
   numberOfShows: {
@@ -10,34 +10,36 @@ const ShowSchema = new mongoose.Schema({
     required: true,
     min: 1,
   },
-  timings: [
+  shows: [
     {
-      type: String,
-      required: true,
-    },
-  ],
-  seatCategories: [
-    {
-      category: {
+      timing: {
         type: String,
-        enum: ["Balcony", "Ordinary"],
         required: true,
       },
-      totalSeats: {
-        type: Number,
-        required: true,
-        min: 0,
-      },
-      availableSeats: {
-        type: Number,
-        required: true,
-        min: 0,
-      },
-      price: {
-        type: Number,
-        required: true,
-        min: 0,
-      },
+      seatCategories: [
+        {
+          category: {
+            type: String,
+            enum: ["Balcony", "Ordinary"],
+            required: true,
+          },
+          totalSeats: {
+            type: Number,
+            required: true,
+            min: 0,
+          },
+          availableSeats: {
+            type: Number,
+            required: true,
+            min: 0,
+          },
+          price: {
+            type: Number,
+            required: true,
+            min: 0,
+          },
+        },
+      ],
     },
   ],
   managerId: {
@@ -50,4 +52,4 @@ const ShowSchema = new mongoose.Schema({
   },
 });
 
-module.exports = mongoose.model("Show", ShowSchema);
+export const Show = mongoose.model("Show", ShowSchema);

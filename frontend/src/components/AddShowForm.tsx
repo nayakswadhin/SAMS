@@ -81,6 +81,7 @@ export default function AddShowForm({ onSubmit, onClose }: AddShowFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // The form data is already in the correct format for the new backend model
     onSubmit(formData);
   };
 
