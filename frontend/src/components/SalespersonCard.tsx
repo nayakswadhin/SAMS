@@ -1,51 +1,56 @@
-import { User, Phone, MapPin, Mail } from "lucide-react";
+import React, { useState } from "react";
+import { Phone, Mail, MapPin } from "lucide-react";
+import SalespersonDetailsModal from "./SalespersonDetailsModal";
+
+interface Salesperson {
+  _id: string;
+  name: string;
+  designation: string;
+  address: string;
+  email: string;
+  phoneNumber: string;
+  createdAt: string;
+}
 
 interface SalespersonCardProps {
-  salesperson: {
-    _id: string;
-    name: string;
-    designation: string;
-    address: string;
-    email: string;
-    phoneNumber: string;
-    createdAt: string;
-  };
+  salesperson: Salesperson;
 }
 
-export default function SalespersonCard({ salesperson }: SalespersonCardProps) {
+const SalespersonCard: React.FC<SalespersonCardProps> = ({ salesperson }) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  console.log("This is salesperson ---->>>>>", salesperson);
+
   return (
-    <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow duration-200">
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-blue-100 rounded-full">
-            <User className="h-6 w-6 text-blue-600" />
+    <>
+      <div
+        className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition duration-200 cursor-pointer"
+        onClick={() => setIsModalOpen(true)}
+      >
+        <h4 className="text-lg font-semibold mb-2">{salesperson.name}</h4>
+        <p className="text-blue-600 mb-4">Salesperson</p>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-gray-600">
+            <Phone size={16} />
+            <span>{salesperson.phoneNumber}</span>
           </div>
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">
-              {salesperson.name}
-            </h3>
-            <p className="text-sm text-gray-600">{salesperson.designation}</p>
+          <div className="flex items-center gap-2 text-gray-600">
+            <Mail size={16} />
+            <span>{salesperson.email}</span>
+          </div>
+          <div className="flex items-center gap-2 text-gray-600">
+            <MapPin size={16} />
+            <span className="truncate">{salesperson.address}</span>
           </div>
         </div>
-        <span className="text-xs text-gray-500">
-          Joined: {new Date(salesperson.createdAt).toLocaleDateString()}
-        </span>
       </div>
 
-      <div className="mt-4 space-y-2">
-        <div className="flex items-center gap-2 text-gray-600">
-          <Mail className="h-4 w-4" />
-          <span className="text-sm">{salesperson.email}</span>
-        </div>
-        <div className="flex items-center gap-2 text-gray-600">
-          <Phone className="h-4 w-4" />
-          <span className="text-sm">{salesperson.phoneNumber}</span>
-        </div>
-        <div className="flex items-center gap-2 text-gray-600">
-          <MapPin className="h-4 w-4" />
-          <span className="text-sm">{salesperson.address}</span>
-        </div>
-      </div>
-    </div>
+      <SalespersonDetailsModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        salesperson={salesperson}
+      />
+    </>
   );
-}
+};
+
+export default SalespersonCard;

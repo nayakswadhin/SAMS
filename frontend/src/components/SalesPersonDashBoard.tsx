@@ -11,8 +11,13 @@ import {
   Banknote,
   XCircle,
   AlertCircle,
+  User,
+  CreditCard,
+  Armchair,
+  ChevronDown,
 } from "lucide-react";
 import axios from "axios";
+import { motion } from "framer-motion";
 
 interface SeatCategory {
   _id: string;
@@ -75,15 +80,14 @@ function CancelBookingModal({ booking, onClose, onConfirm }: CancelModalProps) {
     const ticketPrice = booking.ticketPrice;
 
     if (daysUntilShow > 3) {
-      return ticketPrice - 5; // Deduct Rs.5 booking charge
+      return ticketPrice - 5;
     } else if (daysUntilShow > 1) {
-      // Deduct Rs.10 for ordinary and Rs.15 for balcony tickets
       const deduction = booking.seatType === "Balcony" ? 15 : 10;
       return ticketPrice - deduction;
     } else if (daysUntilShow >= 0) {
-      return ticketPrice * 0.5; // 50% deduction on the last day
+      return ticketPrice * 0.5;
     }
-    return 0; // No refund after show date
+    return 0;
   };
 
   const refundAmount = calculateRefundAmount(booking);
@@ -127,18 +131,18 @@ function CancelBookingModal({ booking, onClose, onConfirm }: CancelModalProps) {
           <div className="border-t pt-4">
             <div className="flex justify-between items-center mb-2">
               <span className="text-gray-600">Ticket Price:</span>
-              <span className="font-medium">${booking.ticketPrice}</span>
+              <span className="font-medium">₹{booking.ticketPrice}</span>
             </div>
             <div className="flex justify-between items-center mb-2">
               <span className="text-gray-600">Refund Amount:</span>
               <span className="font-medium text-green-600">
-                ${refundAmount}
+                ₹{refundAmount}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Deduction:</span>
               <span className="font-medium text-red-600">
-                ${(booking.ticketPrice - refundAmount).toFixed(2)}
+                ₹{(booking.ticketPrice - refundAmount).toFixed(2)}
               </span>
             </div>
           </div>
@@ -193,9 +197,12 @@ function SalespersonDashboard({ onLogout, user }) {
   useEffect(() => {
     const fetchShows = async () => {
       try {
-        const response = await axios.post("http://localhost:3000/getShows", {
-          managerId: managerId,
-        });
+        const response = await axios.post(
+          "https://sams-backend-tbjv.onrender.com/getShows",
+          {
+            managerId: managerId,
+          }
+        );
         setShows(response.data.shows);
         setLoading(false);
       } catch (err) {
@@ -212,9 +219,12 @@ function SalespersonDashboard({ onLogout, user }) {
     const fetchBookings = async () => {
       try {
         setBookingsLoading(true);
-        const response = await axios.post("http://localhost:3000/getBookings", {
-          userId: salesperson._id,
-        });
+        const response = await axios.post(
+          "https://sams-backend-tbjv.onrender.com/getBookings",
+          {
+            userId: salesperson._id,
+          }
+        );
 
         if (response.data.success) {
           setBookings(response.data.data);
@@ -228,8 +238,6 @@ function SalespersonDashboard({ onLogout, user }) {
         setBookingsLoading(false);
       }
     };
-
-    // Only fetch bookings if salesperson ID exists
     if (salesperson._id) {
       fetchBookings();
     } else {
@@ -262,7 +270,7 @@ function SalespersonDashboard({ onLogout, user }) {
       };
 
       const response = await axios.post(
-        "http://localhost:3000/book-seat",
+        "https://sams-backend-tbjv.onrender.com/book-seat",
         bookingData
       );
 
@@ -294,17 +302,14 @@ function SalespersonDashboard({ onLogout, user }) {
         });
         setSelectedShow(null);
 
-        // Refresh the bookings list from the server
-        const bookingsResponse = await axios.post(
-          "http://localhost:3000/getBookings",
+        // Refresh shows to update available seats
+        const showsResponse = await axios.post(
+          "https://sams-backend-tbjv.onrender.com/getShows",
           {
-            userId: salesperson._id,
+            managerId: managerId,
           }
         );
-
-        if (bookingsResponse.data.success) {
-          setBookings(bookingsResponse.data.data);
-        }
+        setShows(showsResponse.data.shows);
       } else {
         setError(response.data.message || "Failed to create booking");
       }
@@ -322,37 +327,56 @@ function SalespersonDashboard({ onLogout, user }) {
     refundAmount: number
   ) => {
     try {
-      // Here you would typically make an API call to cancel the booking on the server
-      // For now, we'll just update the UI
-      setBookings(
-        bookings.map((booking) =>
-          booking.id === bookingId
-            ? { ...booking, status: "Cancelled" }
-            : booking
-        )
+      // Call the cancelBooking API
+      const response = await axios.post(
+        "https://sams-backend-tbjv.onrender.com/cancelBooking",
+        {
+          bookingId,
+          refundAmount,
+        }
       );
-      setSelectedBookingForCancel(null);
 
-      // Ideally, you would have an API call like:
-      /*
-      await axios.post("http://localhost:3000/cancel-booking", {
-        bookingId,
-        refundAmount,
-        userId: salesperson._id
-      });
-      
-      // Then refresh the bookings
-      const response = await axios.post("http://localhost:3000/getBookings", {
-        userId: salesperson._id,
-      });
-      
       if (response.data.success) {
-        setBookings(response.data.data);
+        // Update bookings state to reflect cancelled status
+        setBookings(
+          bookings.map((booking) =>
+            booking.id === bookingId
+              ? { ...booking, status: "Cancelled" }
+              : booking
+          )
+        );
+
+        // Refresh bookings from server to ensure consistency
+        const bookingsResponse = await axios.post(
+          "https://sams-backend-tbjv.onrender.com/getBookings",
+          {
+            userId: salesperson._id,
+          }
+        );
+
+        if (bookingsResponse.data.success) {
+          setBookings(bookingsResponse.data.data);
+        }
+
+        // Refresh shows to update available seats
+        const showsResponse = await axios.post(
+          "https://sams-backend-tbjv.onrender.com/getShows",
+          {
+            managerId: managerId,
+          }
+        );
+        setShows(showsResponse.data.shows);
+
+        setSelectedBookingForCancel(null);
+      } else {
+        setError(response.data.message || "Failed to cancel booking");
       }
-      */
     } catch (err) {
       console.error("Error cancelling booking:", err);
-      setError("Failed to cancel booking. Please try again.");
+      setError(
+        err.response?.data?.message ||
+          "Failed to cancel booking. Please try again."
+      );
     }
   };
 
@@ -476,7 +500,7 @@ function SalespersonDashboard({ onLogout, user }) {
                                   {category.category}
                                 </span>
                                 <span className="text-blue-600 font-medium flex items-center gap-1">
-                                  <Banknote size={14} />${category.price}
+                                  <Banknote size={14} />₹{category.price}
                                 </span>
                                 <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded-md text-xs">
                                   {category.availableSeats} available
@@ -496,50 +520,85 @@ function SalespersonDashboard({ onLogout, user }) {
           <div className="lg:col-span-5 space-y-8">
             {/* Booking Form */}
             {selectedShow && (
-              <div className="bg-white rounded-xl shadow-md p-6 transition-all duration-300 hover:shadow-lg">
-                <div className="flex justify-between items-center mb-6">
-                  <div>
-                    <h2 className="text-xl font-semibold mb-2">Book Tickets</h2>
-                    <p className="text-sm text-gray-600">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="bg-white rounded-xl p-8 shadow-xl backdrop-blur-lg bg-opacity-95 border border-gray-100"
+              >
+                <div className="flex justify-between items-center mb-8">
+                  <motion.div initial={{ x: -20 }} animate={{ x: 0 }}>
+                    <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 text-transparent bg-clip-text mb-2">
+                      Book Tickets
+                    </h2>
+                    <p className="text-sm text-gray-600 flex items-center gap-2">
+                      <Calendar size={16} className="text-blue-600" />
                       {formatDate(selectedShow.show.showDate)} at{" "}
                       {selectedShow.show.shows[selectedShow.showIndex].timing}
                     </p>
-                  </div>
-                  <button
+                  </motion.div>
+                  <motion.button
+                    whileHover={{ scale: 1.1, rotate: 90 }}
+                    whileTap={{ scale: 0.9 }}
                     onClick={() => setSelectedShow(null)}
-                    className="text-gray-500 hover:text-gray-700 p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    className="text-gray-500 hover:text-gray-700 p-2 hover:bg-gray-100 rounded-full transition-all duration-200"
                   >
                     <X size={20} />
-                  </button>
+                  </motion.button>
                 </div>
-                <form onSubmit={handleBookingSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+
+                <motion.form
+                  onSubmit={handleBookingSubmit}
+                  className="space-y-6"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.1 }}
+                >
+                  <motion.div
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ delay: 0.2 }}
+                    className="space-y-2"
+                  >
+                    <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                      <Armchair size={18} className="text-blue-600" />
                       Seat Type
                     </label>
-                    <select
-                      value={bookingForm.seatType}
-                      onChange={(e) =>
-                        setBookingForm({
-                          ...bookingForm,
-                          seatType: e.target.value as "Balcony" | "Ordinary",
-                        })
-                      }
-                      className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 transition-all duration-300"
-                      required
-                    >
-                      {selectedShow.show.shows[
-                        selectedShow.showIndex
-                      ].seatCategories.map((category) => (
-                        <option key={category._id} value={category.category}>
-                          {category.category} (${category.price}) -{" "}
-                          {category.availableSeats} available
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <div className="relative">
+                      <select
+                        value={bookingForm.seatType}
+                        onChange={(e) =>
+                          setBookingForm({
+                            ...bookingForm,
+                            seatType: e.target.value as "Balcony" | "Ordinary",
+                          })
+                        }
+                        className="w-full pl-4 pr-10 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white appearance-none"
+                        required
+                      >
+                        {selectedShow.show.shows[
+                          selectedShow.showIndex
+                        ].seatCategories.map((category) => (
+                          <option key={category._id} value={category.category}>
+                            {category.category} (₹{category.price}) -{" "}
+                            {category.availableSeats} available
+                          </option>
+                        ))}
+                      </select>
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none text-gray-500">
+                        <ChevronDown size={18} />
+                      </div>
+                    </div>
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ delay: 0.3 }}
+                    className="space-y-2"
+                  >
+                    <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                      <Armchair size={18} className="text-blue-600" />
                       Seat Number
                     </label>
                     <input
@@ -551,13 +610,20 @@ function SalespersonDashboard({ onLogout, user }) {
                           seatNumber: e.target.value,
                         })
                       }
-                      className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 transition-all duration-300"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                       placeholder="Enter seat number"
                       required
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ delay: 0.4 }}
+                    className="space-y-2"
+                  >
+                    <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                      <User size={18} className="text-blue-600" />
                       Spectator Name
                     </label>
                     <input
@@ -569,13 +635,20 @@ function SalespersonDashboard({ onLogout, user }) {
                           spectatorName: e.target.value,
                         })
                       }
-                      className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 transition-all duration-300"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                       placeholder="Enter spectator name"
                       required
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ delay: 0.5 }}
+                    className="space-y-2"
+                  >
+                    <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                      <CreditCard size={18} className="text-blue-600" />
                       Payment Information
                     </label>
                     <input
@@ -587,20 +660,30 @@ function SalespersonDashboard({ onLogout, user }) {
                           paymentInfo: e.target.value,
                         })
                       }
-                      className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 transition-all duration-300"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                       placeholder="Enter payment information"
                       required
                     />
-                  </div>
-                  <button
-                    type="submit"
-                    className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-2"
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.6 }}
+                    className="pt-4"
                   >
-                    <CheckCircle2 size={18} />
-                    Confirm Booking
-                  </button>
-                </form>
-              </div>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      type="submit"
+                      className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-4 px-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-3 font-medium"
+                    >
+                      <CheckCircle2 size={20} />
+                      Confirm Booking
+                    </motion.button>
+                  </motion.div>
+                </motion.form>
+              </motion.div>
             )}
 
             {/* Recent Bookings */}
@@ -658,7 +741,7 @@ function SalespersonDashboard({ onLogout, user }) {
                             {booking.seatType} - Seat {booking.seatNumber}
                           </p>
                           <p className="flex items-center gap-2">
-                            <Banknote size={14} />${booking.ticketPrice}
+                            <Banknote size={14} />₹{booking.ticketPrice}
                           </p>
                           {booking.paymentInfo && (
                             <p className="flex items-center gap-2 text-xs text-gray-500">

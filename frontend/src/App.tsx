@@ -25,7 +25,6 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    // Check if user data exists in localStorage on component mount
     const storedUser = localStorage.getItem("user");
     const storedUserType = localStorage.getItem("userType");
     if (storedUser && storedUserType) {
@@ -44,10 +43,13 @@ function App() {
     try {
       console.log("Attempting login with:", email);
 
-      const response = await axios.post("http://localhost:3000/api/login", {
-        email,
-        password,
-      });
+      const response = await axios.post(
+        "https://sams-backend-tbjv.onrender.com/api/login",
+        {
+          email,
+          password,
+        }
+      );
       console.log("Login successful");
       localStorage.setItem("user", JSON.stringify(response.data.user));
       localStorage.setItem("userType", userType!);
@@ -79,7 +81,7 @@ function App() {
   }) => {
     try {
       const response = await axios.post(
-        "http://localhost:3000/api/register",
+        "https://sams-backend-tbjv.onrender.com/api/register",
         data
       );
       console.log("Signup successful");

@@ -39,7 +39,7 @@ const CreateSalespersonForm: React.FC<CreateSalespersonFormProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     axios
-      .post("http://localhost:3000/api/register", {
+      .post("https://sams-backend-tbjv.onrender.com/api/register", {
         name: formData.name,
         designation: "SalesUser",
         address: formData.address,
